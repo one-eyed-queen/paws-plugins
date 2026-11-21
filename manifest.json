@@ -1,0 +1,29 @@
+{
+  "schema": 1,
+  "updated": "2026-11-21",
+  "repo": "https://github.com/one-eyed-queen/paws-plugins",
+  "entries": [
+    {
+      "steam_arch": 64,
+      "steam_build": "1792618285",
+      "sls_version": "20261112130346",
+      "file": "download-steam64.lua",
+      "url": "https://raw.githubusercontent.com/one-eyed-queen/paws-plugins/main/plugins/download-steam64.lua",
+      "sha256": "cfc32766aede025c507cd7dc639a34f8153e5d30f90ac2d201183b464457f284",
+      "version": "2026.11.21-x64-1",
+      "pattern_set": "steam64-1792618285",
+      "note": "verified against steamrt64/steamclient.so build 1792618285 (BuildID 92e5aed0...)"
+    },
+    {
+      "steam_arch": 32,
+      "steam_build": "*",
+      "sls_version": "*",
+      "file": "download-steam32.lua",
+      "url": "https://raw.githubusercontent.com/one-eyed-queen/paws-plugins/main/plugins/download-steam32.lua",
+      "sha256": "8e822aecfea085cfcada45b9ed0e8f2c09bc04b76c667cc1904342c9197be627",
+      "version": "2026.09.04-x86",
+      "pattern_set": "steam32-legacy",
+      "note": "the original 32-bit plugin paws has shipped; unchanged"
+    }
+  ]
+}
