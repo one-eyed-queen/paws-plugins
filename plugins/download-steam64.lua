@@ -5,7 +5,7 @@
 -- byte patterns and PackageInfo_t offsets do not exist in the 64-bit client.
 -- Verified against steamclient.so build 1792618285 (sha256 dab8df0d...).
 --
--- -- version: 2026.11.21-x64-1
+-- -- version: 2026.11.22-x64-2
 -- -- steam-arch: 64
 -- -- steam-build: 1792618285
 -- -- pattern-source: steamrt64/steamclient.so
@@ -52,24 +52,38 @@ end
 
 -- Locate libtier0_s.so by absolute path. ffi.load("tier0_s") resolves by SONAME, and
 -- this library has no SONAME, so a bare name fails inside Steam's LuaJIT on x64.
--- The library is mapped from the steamrt64 directory, so recover its path from
--- /proc/self/maps (luaL_openlibs makes io available to plugins).
+-- steamclient.so is always mapped (we scan it below) and libtier0_s.so sits beside it
+-- in steamrt64, so prefer that sibling path; fall back to any mapped copy, then to names.
+-- luaL_openlibs makes io available to plugins.
 local tier0
 local function load_tier0()
+	local sibling, mapped
 	local f = io.open("/proc/self/maps", "r")
 	if f then
 		for line in f:lines() do
 			-- Grab the mapped path up to .so; a "(deleted)" suffix after it is harmless.
-			local path = line:match("(/%S*libtier0_s%.so)")
-			if path then
-				f:close()
-				local ok, lib = pcall(ffi.load, path)
-				if ok then
-					return lib
+			if not sibling then
+				local client = line:match("(/%S*steamclient%.so)")
+				if client then
+					local dir = client:match("^(.*)/")
+					if dir then
+						sibling = dir .. "/libtier0_s.so"
+					end
 				end
+			end
+			if not mapped then
+				mapped = line:match("(/%S*libtier0_s%.so)")
 			end
 		end
 		f:close()
+	end
+	for _, path in ipairs({ sibling, mapped }) do
+		if path then
+			local ok, lib = pcall(ffi.load, path)
+			if ok then
+				return lib
+			end
+		end
 	end
 	for _, name in ipairs({ "libtier0_s.so", "tier0_s" }) do
 		local ok, lib = pcall(ffi.load, name)
@@ -77,7 +91,7 @@ local function load_tier0()
 			return lib
 		end
 	end
-	error("could not load libtier0_s.so: not found in /proc/self/maps and no usable fallback name")
+	error("could not load libtier0_s.so: no sibling of steamclient.so, no mapped copy, and no usable name")
 end
 
 local ok_tier0, result = pcall(load_tier0)
