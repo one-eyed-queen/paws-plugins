@@ -9,15 +9,15 @@ paws uses [`manifest.json`](manifest.json) to pick one download interceptor by S
 - `x64/` — plugins for the 64-bit `steamrt64` client.
 - `x86/` — plugins for the 32-bit `ubuntu12_32` client.
 
-Filenames and internal identifiers are deliberately opaque and drawn from Tokyo Ghoul objects and concepts — Kagune, Ukaku, Koukaku, Quinque-like tools, Kakuhou, Rc Cells, masks, wards and doves. There are no comments in the Lua sources.
+Every filename, table, field, function, marker and log tag is a Tokyo Ghoul lore term — One-Eyed Owl, One-Eyed King, Aogiri Tree, Anteiku, CCG, Borr, Kakuja, Kakuhou, Rc Cells, fox and clown masks, and the four kagune types. Nothing is a generic English word, and the Lua sources contain no comments.
 
 | x64 file | x86 file | Role | Auto-installed by paws? |
 |---|---|---|---|
-| `ukaku.lua` | `koukaku.lua` | Download interceptor: depots, decryption keys, MRC resolution | Yes, via the manifest |
-| `mask.lua` | `mask.lua` | Ownership-ticket splicing for apps whose own ticket request fails | No, optional |
-| `rccells.lua` | `rccells.lua` | Looks up missing depot keys in Sudama's key list | No, optional |
-| `kakuhou.lua` | `kakuhou.lua` | Saves/restores-warning for `AdditionalDepots` and `DecryptionKeys` | No, optional |
-| `dove.lua` | `dove.lua` | Startup/config health check for the download setup | No, optional |
+| `owl.lua` | `oneeyeking.lua` | Download interceptor: depots, decryption keys, MRC resolution | Yes, via the manifest |
+| `clown.lua` | `clown.lua` | Ownership-ticket splicing for apps whose own ticket request fails | No, optional |
+| `borr.lua` | `borr.lua` | Looks up missing depot keys in Sudama's key list | No, optional |
+| `anteiku.lua` | `anteiku.lua` | Saves/restores-warning for `AdditionalDepots` and `DecryptionKeys` | No, optional |
+| `ccg.lua` | `ccg.lua` | Startup/config health check for the download setup | No, optional |
 
 Optional plugins share the `Kagune` global namespace and only mark their presence there; they do not hook each other.
 
