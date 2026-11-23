@@ -2,7 +2,9 @@
 
 Version-pinned SLSsteam Lua plugins for [paws](https://github.com/one-eyed-queen/paws).
 
-paws uses [`manifest.json`](manifest.json) to pick one download interceptor by Steam architecture, Steam client build and SLSsteam version. It verifies SHA-256 before installing it as `~/.config/SLSsteam/plugins/download.lua`. The bundled x86 copy inside paws is only the offline fallback.
+paws uses [`manifest.json`](manifest.json) to pick one download interceptor by Steam architecture, Steam client build and SLSsteam version. It also checks the installed SLSsteam word size, so an x86 plugin never lands on an x64 client. It verifies SHA-256 before installing anything as `~/.config/SLSsteam/plugins/download.lua`. The bundled x86 copy inside paws is only the offline fallback.
+
+The optional plugins live under the manifest's `plugins` key. `paws plugins available` lists them, `paws plugins install <name>` fetches one, and **Plugins > From collection** does the same in the TUI. Dropping a plugin `.lua` (including `download.lua`) onto the paws window installs it; a game's depot-key `.lua` is still treated as game data.
 
 ## Layout
 

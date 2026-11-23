@@ -25,5 +25,87 @@
       "pattern_set": "steam32-legacy",
       "note": "x86 download interceptor with MRC robustness and proxy fallback"
     }
+  ],
+  "plugins": [
+    {
+      "name": "clown",
+      "role": "ticket",
+      "steam_arch": 64,
+      "file": "clown.lua",
+      "url": "https://raw.githubusercontent.com/one-eyed-queen/paws-plugins/main/x64/clown.lua",
+      "sha256": "dd3c08ce243d335e5e1a3b24adbc2216bbe3469863342ea9f380fd1774cd66f0",
+      "version": "2026.11.23-x64-1",
+      "desc": "ownership-ticket splicing for apps whose own ticket request fails"
+    },
+    {
+      "name": "clown",
+      "role": "ticket",
+      "steam_arch": 32,
+      "file": "clown.lua",
+      "url": "https://raw.githubusercontent.com/one-eyed-queen/paws-plugins/main/x86/clown.lua",
+      "sha256": "af8aa3f8dc4b76fc80b7e08d3b3dd33fbe7742156becbacd268685a28dcebd75",
+      "version": "2026.11.23-x86-1",
+      "desc": "ownership-ticket splicing for apps whose own ticket request fails"
+    },
+    {
+      "name": "borr",
+      "role": "keys",
+      "steam_arch": 64,
+      "file": "borr.lua",
+      "url": "https://raw.githubusercontent.com/one-eyed-queen/paws-plugins/main/x64/borr.lua",
+      "sha256": "51d9f1529784c9e8200d0e5f1c8edaa1d4e4733bf6cc8148607c4219273a69dd",
+      "version": "2026.11.23-1",
+      "desc": "looks up missing depot keys in Sudama's key list"
+    },
+    {
+      "name": "borr",
+      "role": "keys",
+      "steam_arch": 32,
+      "file": "borr.lua",
+      "url": "https://raw.githubusercontent.com/one-eyed-queen/paws-plugins/main/x86/borr.lua",
+      "sha256": "51d9f1529784c9e8200d0e5f1c8edaa1d4e4733bf6cc8148607c4219273a69dd",
+      "version": "2026.11.23-1",
+      "desc": "looks up missing depot keys in Sudama's key list"
+    },
+    {
+      "name": "anteiku",
+      "role": "config",
+      "steam_arch": 64,
+      "file": "anteiku.lua",
+      "url": "https://raw.githubusercontent.com/one-eyed-queen/paws-plugins/main/x64/anteiku.lua",
+      "sha256": "1f2b0e8336e26c4d848e1f3838fdeb9ed8d26cbaf9b847175babb5db73f670d9",
+      "version": "2026.11.23-1",
+      "desc": "warns before losing AdditionalDepots and DecryptionKeys"
+    },
+    {
+      "name": "anteiku",
+      "role": "config",
+      "steam_arch": 32,
+      "file": "anteiku.lua",
+      "url": "https://raw.githubusercontent.com/one-eyed-queen/paws-plugins/main/x86/anteiku.lua",
+      "sha256": "1f2b0e8336e26c4d848e1f3838fdeb9ed8d26cbaf9b847175babb5db73f670d9",
+      "version": "2026.11.23-1",
+      "desc": "warns before losing AdditionalDepots and DecryptionKeys"
+    },
+    {
+      "name": "ccg",
+      "role": "health",
+      "steam_arch": 64,
+      "file": "ccg.lua",
+      "url": "https://raw.githubusercontent.com/one-eyed-queen/paws-plugins/main/x64/ccg.lua",
+      "sha256": "2fc281a27ccf001e5c48a0a561505eac43766aa8246e79a6bf498a18e8d64a6e",
+      "version": "2026.11.23-1",
+      "desc": "startup check for the download setup"
+    },
+    {
+      "name": "ccg",
+      "role": "health",
+      "steam_arch": 32,
+      "file": "ccg.lua",
+      "url": "https://raw.githubusercontent.com/one-eyed-queen/paws-plugins/main/x86/ccg.lua",
+      "sha256": "2fc281a27ccf001e5c48a0a561505eac43766aa8246e79a6bf498a18e8d64a6e",
+      "version": "2026.11.23-1",
+      "desc": "startup check for the download setup"
+    }
   ]
 }
