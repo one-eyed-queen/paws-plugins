@@ -7,10 +7,10 @@
       "steam_arch": 64,
       "steam_build": "1792618285",
       "sls_version": "20261112130346",
-      "file": "rize.lua",
-      "url": "https://raw.githubusercontent.com/one-eyed-queen/paws-plugins/main/x64/rize.lua",
-      "sha256": "68030637953b523d3b0ea9354b54c98f6961a9c6f8796b97229685c2bc2cb96f",
-      "version": "2026.11.23-x64-4",
+      "file": "ukaku.lua",
+      "url": "https://raw.githubusercontent.com/one-eyed-queen/paws-plugins/main/x64/ukaku.lua",
+      "sha256": "5e216063b0c531a3437726b734ba025f7829f5214345ff6a90a8e6e2e2fde262",
+      "version": "2026.11.23-x64-5",
       "pattern_set": "steam64-1792618285",
       "note": "verified against steamrt64/steamclient.so build 1792618285"
     },
@@ -18,12 +18,12 @@
       "steam_arch": 32,
       "steam_build": "*",
       "sls_version": "*",
-      "file": "kaneki.lua",
-      "url": "https://raw.githubusercontent.com/one-eyed-queen/paws-plugins/main/x86/kaneki.lua",
-      "sha256": "5dbdc4e3043feba049e515754bd52ded8ecadea1a09650e5d10b05e6bdb94fe7",
-      "version": "2026.11.23-x86-2",
+      "file": "koukaku.lua",
+      "url": "https://raw.githubusercontent.com/one-eyed-queen/paws-plugins/main/x86/koukaku.lua",
+      "sha256": "6069b199a7bf88f974ab4bf71b15025c52fef183191ebb6ea864d89cb57d5a73",
+      "version": "2026.11.23-x86-3",
       "pattern_set": "steam32-legacy",
-      "note": "x86 download interceptor with the same MRC robustness and proxy fallback"
+      "note": "x86 download interceptor with MRC robustness and proxy fallback"
     }
   ]
 }
