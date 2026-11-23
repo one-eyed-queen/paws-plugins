@@ -27,9 +27,13 @@ The root [`manifest.json`](../../manifest.json) is for paws' `download.lua` only
 
 ## Ideas worth borrowing, without copying code
 
-ASSella is GPL-3.0. paws is source-available under its own all-rights-reserved license, so GPL source must not be pasted into paws. These are behaviour ideas to reimplement independently and credit as inspiration:
+ASSella is GPL-3.0. paws is source-available under its own all-rights-reserved license, so GPL source must not be pasted into paws. These are behaviour ideas to reimplement independently and credit as inspiration.
 
-- **SpaceBunny:** multiple MRC providers with per-provider circuit breakers, backoff and a compact failure summary; optional proxy fallback through a transport plugin.
+**Ported in `2026.11.23-x64-3`:** the SpaceBunny MRC ideas—sanity checks, success cache, failure backoff, provider cooldown, per-call budget and a compact failure summary—were reimplemented clean-room in the x64 plugin. Its provider list stays limited to the HTTPS `wudrm` endpoint because the other upstream hosts were blocked or Cloudflare-challenged when checked; the code is ready for more entries.
+
+Other ideas still worth considering:
+
+- **Lettuce:** one-shot proxy retry for blocked upstream hosts, leaving direct requests untouched when they work.
 - **Lettuce:** one-shot proxy retry for blocked upstream hosts, leaving direct requests untouched when they work.
 - **Lobster:** detect a config rewrite that stripped depot/key sections and restore them from the last known good copy.
 - **Pineapple:** pre-seed depot manifests so a dead MRC provider does not stop an update.

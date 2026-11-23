@@ -1,6 +1,6 @@
 {
   "schema": 1,
-  "updated": "2026-11-22",
+  "updated": "2026-11-23",
   "repo": "https://github.com/one-eyed-queen/paws-plugins",
   "entries": [
     {
@@ -9,10 +9,10 @@
       "sls_version": "20261112130346",
       "file": "download-steam64.lua",
       "url": "https://raw.githubusercontent.com/one-eyed-queen/paws-plugins/main/plugins/download-steam64.lua",
-      "sha256": "838f03e3e62f7e6f5825c13b3ebbb69f7b3dc14b3c72bb45c40ddbbf5655819c",
-      "version": "2026.11.22-x64-2",
+      "sha256": "4fcac93f9b35dfb1256a44a8779ece75ad36c72ce80df02ae6ed87f5d2606431",
+      "version": "2026.11.23-x64-3",
       "pattern_set": "steam64-1792618285",
-      "note": "verified against steamrt64/steamclient.so build 1792618285 (BuildID 92e5aed0...)"
+      "note": "verified against steamrt64/steamclient.so build 1792618285; MRC sanity checks, cache, backoff, HTTPS, safer hooks"
     },
     {
       "steam_arch": 32,

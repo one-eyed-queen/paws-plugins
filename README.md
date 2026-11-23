@@ -14,7 +14,7 @@ place: change the file, update its hash in `manifest.json`, then let paws re-fet
 
 | file | for | notes |
 |---|---|---|
-| `plugins/download-steam64.lua` | 64-bit `steamrt64` Steam client | x64 port: SysV hooks, RIP-relative call-site patterns, x64 `PackageInfo_t`, absolute-path `libtier0_s.so` load |
+| `plugins/download-steam64.lua` | 64-bit `steamrt64` Steam client | x64 port: SysV hooks, RIP-relative call-site patterns, x64 `PackageInfo_t`, absolute-path `libtier0_s.so` load, HTTPS MRC with validation/cache/backoff and guarded hooks |
 | `plugins/download-steam32.lua` | 32-bit `ubuntu12_32` Steam client | the original plugin paws has shipped for years |
 | `plugins/LICENSE` | both | MIT, copyright ciscosweater (original plugin) |
 
@@ -25,7 +25,8 @@ place: change the file, update its hash in `manifest.json`, then let paws re-fet
 not selected by `manifest.json` and are not installed by `paws plugins download`. SpaceBunny covers
 the same job as `download.lua` but is x86-era; the verified x64 plugin remains the one in
 [`plugins/`](plugins/). See [`contrib/assella/README.md`](contrib/assella/README.md) for hashes,
-versions and which ideas are worth reimplementing in paws without copying GPL code.
+versions. The MRC robustness ideas were reimplemented clean-room in the x64 plugin (`2026.11.23-x64-3`);
+no GPL code was copied into it.
 
 ## Manifest
 

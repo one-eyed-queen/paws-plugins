@@ -5,11 +5,15 @@
 -- byte patterns and PackageInfo_t offsets do not exist in the 64-bit client.
 -- Verified against steamclient.so build 1792618285 (sha256 dab8df0d...).
 --
--- -- version: 2026.11.22-x64-2
+-- -- version: 2026.11.23-x64-3
 -- -- steam-arch: 64
 -- -- steam-build: 1792618285
 -- -- pattern-source: steamrt64/steamclient.so
 -- -- depots-offset: 0x58 (second CUtlVector in PackageInfo_t; x86 plugin used 0x48)
+--
+-- 2026.11.23-x64-3: MRC sanity checks, success cache and failure backoff, HTTPS provider, total request
+-- budget, mutex safety on every hook, and defensive depot-vector handling. The MRC robustness ideas came
+-- from niwia's SpaceBunny (GPL-3.0, credited in contrib/assella); this is an independent x64 implementation.
 
 Downloader = Downloader or {
 	setup = false,
@@ -21,12 +25,22 @@ Downloader = Downloader or {
 
 	-- GetPackage vars
 	PackageDepotIds = {},
+	OriginalDepotCaptured = false,
 	Package = nil,
 	RewriteDepots = false,
 
 	-- GetMRC vars
-	MAX_MANIFEST_STRING_SIZE = 32,
-	MAX_MANIFEST_TRIES = 5,
+	MRC_PROVIDERS = {
+		{ name = "wudrm", url = "https://gmrc.wudrm.com/manifest/" },
+	},
+	MRC_TIMEOUT_SEC = 4,
+	MRC_TOTAL_BUDGET_SEC = 8,
+	MRC_CACHE_TTL = 300,
+	MRC_FAIL_TTL = 30,
+	MRC_CACHE_MAX = 500,
+	MRCCache = {},
+	MRCFail = {},
+	MRCProviderFail = {},
 }
 
 Downloader.resetSettings = function()
@@ -159,52 +173,108 @@ if not configStoreGetBinary:init() then
 	return
 end
 
-Downloader.mutexReturn = function(value, mutex)
-	mutex:unlock()
-	return value
+-- Every hook holds LuaMutex while it runs. An error used to leave it locked and stall Steam, so the whole
+-- body is wrapped: the fallback is returned and the mutex is unlocked even if a hook throws.
+Downloader.callInHook = function(label, fallback, fn)
+	local ok, mutex = pcall(LuaMutex)
+	if not ok then
+		log.error("download.lua (x64): " .. label .. " could not lock LuaMutex: " .. tostring(mutex))
+		return type(fallback) == "function" and fallback() or fallback
+	end
+
+	local completed, result = pcall(fn, mutex)
+	if not completed then
+		log.error("download.lua (x64): " .. label .. " failed: " .. tostring(result))
+		result = type(fallback) == "function" and fallback() or fallback
+	end
+
+	local unlocked, unlockError = pcall(function() mutex:unlock() end)
+	if not unlocked then
+		log.error("download.lua (x64): " .. label .. " could not unlock LuaMutex: " .. tostring(unlockError))
+	end
+	return result
 end
 
 -- GetPackage methods --------------------------------------------------------------------------
 Downloader.getAllDepots = function()
-	-- Do not assign other table, iirc Lua creates a ref if you do
-	local merged = {}
+	-- Keep the original order, drop duplicates, and never put a bad id into the vector.
+	local merged, seen = {}, {}
 
-	for k, v in pairs(Downloader.PackageDepotIds) do
-		table.insert(merged, v)
+	local function append(list)
+		for _, id in ipairs(list) do
+			if type(id) == "number" and id > 0 and id == math.floor(id) and not seen[id] then
+				seen[id] = true
+				merged[#merged + 1] = id
+			end
+		end
 	end
 
-	for k, v in pairs(Downloader.AdditionalDepots) do
-		table.insert(merged, v)
-	end
-
+	append(Downloader.PackageDepotIds)
+	append(Downloader.AdditionalDepots)
 	return merged
 end
 
 Downloader.writeDepotIds = function()
 	local pkg = Downloader.Package
 
-	if pkg == nil then
+	if pkg == nil or pkg.packageId ~= 0 then
 		return
 	end
-
-	log.debug("writeDepotIds into Package " .. pkg.packageId .. " at " .. tostring(pkg))
 
 	-- PackageInfo_t has two CUtlVector<uint32> fields. The first (+0x40) is the dependency/status list;
 	-- the second (+0x58, x86 +0x48) is the AdditionalDepots list the download loop reads. Patch only
 	-- the second, exactly like the x86 plugin.
 	local depots = pkg.depots
-	local mem = depots.mem
-	local size = depots.size
+	if depots == nil or depots.mem == nil then
+		log.warn("Package 0 has no depot vector, leaving it alone")
+		return
+	end
 
-	if #Downloader.PackageDepotIds < 1 then
-		-- Back up original depot Ids
+	local mem = depots.mem
+	local size = tonumber(depots.size) or 0
+	local grow = depots.grow
+
+	if size < 0 or size > 0x10000 or (tonumber(depots.alloc) or 0) < size then
+		log.warn("Package 0 depot vector looks corrupt (size " .. size .. "), leaving it alone")
+		return
+	end
+
+	log.debug("writeDepotIds into Package " .. pkg.packageId .. " at " .. tostring(pkg))
+
+	if not Downloader.OriginalDepotCaptured then
 		for i = 0, size - 1 do
 			table.insert(Downloader.PackageDepotIds, mem[i])
 		end
+		Downloader.OriginalDepotCaptured = true
+		log.debug("Backed up " .. size .. " original depot ids")
 	end
 
 	local merged = Downloader.getAllDepots()
+	if #merged < 1 then
+		log.warn("Refusing to write an empty depot vector")
+		return
+	end
+
+	-- The config reload path calls this with no additional depots, which is already the restored list.
+	local same = (#merged == size)
+	if same then
+		for i = 0, size - 1 do
+			if mem[i] ~= merged[i + 1] then
+				same = false
+				break
+			end
+		end
+	end
+	if same then
+		log.debug("Depot vector is already the merged list, leaving it alone")
+		return
+	end
+
 	local new = ffi.cast("uint32_t*", tier0.Plat_Alloc(4 * #merged))
+	if new == nil then
+		log.error("Plat_Alloc failed for " .. #merged .. " depots, keeping the original vector")
+		return
+	end
 
 	for i = 0, #merged - 1 do
 		new[i] = merged[i + 1]
@@ -213,38 +283,43 @@ Downloader.writeDepotIds = function()
 	depots.mem = new
 	depots.size = #merged
 	depots.alloc = depots.size
+	depots.grow = grow
 
 	tier0.Plat_Free(mem)
 end
 
 Downloader.hkGetPackage = ffi.cast("GetPackage_t", function(pPkgInfoCache, pkgId, mask)
-	local mutex = LuaMutex()
-	local pPkg = Downloader.getPackageTramp(pPkgInfoCache, pkgId, mask)
+	local trampResult = nil
 
-	-- We only want to modify package 0
-	if pkgId ~= 0 then
-		return Downloader.mutexReturn(pPkg, mutex)
-	end
+	return Downloader.callInHook("GetPackage", function() return trampResult end, function()
+		local pPkg = Downloader.getPackageTramp(pPkgInfoCache, pkgId, mask)
+		trampResult = pPkg
 
-	-- Pkg not cached yet, abort
-	if pPkg == nil then
-		return Downloader.mutexReturn(pPkg, mutex)
-	end
+		-- We only want to modify package 0
+		if pkgId ~= 0 or pPkg == nil then
+			return pPkg
+		end
 
-	-- Nothing to inject
-	if not Downloader.RewriteDepots then
-		return Downloader.mutexReturn(pPkg, mutex)
-	end
+		-- Steam can recreate the package object. Never patch a stale pointer.
+		if Downloader.Package ~= nil and Downloader.Package ~= pPkg then
+			log.debug("Package 0 pointer moved, re-baselining the depot backup")
+			Downloader.Package = nil
+			Downloader.PackageDepotIds = {}
+			Downloader.OriginalDepotCaptured = false
+		end
 
-	if Downloader.Package == nil then
-		-- Catch the pkg
-		Downloader.Package = pPkg
-	end
+		if not Downloader.RewriteDepots then
+			return pPkg
+		end
 
-	Downloader.writeDepotIds()
-	Downloader.RewriteDepots = false
+		if Downloader.Package == nil then
+			Downloader.Package = pPkg
+		end
 
-	return Downloader.mutexReturn(pPkg, mutex)
+		Downloader.writeDepotIds()
+		Downloader.RewriteDepots = false
+		return pPkg
+	end)
 end)
 
 -- GetBinary methods ---------------------------------------------------------------------------
@@ -272,87 +347,233 @@ Downloader.keyToBinary = function(depotId, key)
 end
 
 Downloader.hkGetBinary = ffi.cast("GetBinary_t", function(pConfigStore, store, pChName, pOut, outSize)
-	local mutex = LuaMutex()
-	local size = Downloader.getBinaryTramp(pConfigStore, store, pChName, pOut, outSize)
+	local trampSize = 0
 
-	local nameMatch = ffi.string(pChName):match("%d+\\DecryptionKey")
-	if nameMatch == nil then
-		return Downloader.mutexReturn(size, mutex)
-	end
+	return Downloader.callInHook("GetBinary", function() return trampSize end, function()
+		trampSize = Downloader.getBinaryTramp(pConfigStore, store, pChName, pOut, outSize)
 
-	local depotId = tonumber(nameMatch:match("%d+"))
-	local key = Downloader.DecryptionKeys[depotId]
-
-	if key == nil then
-		-- No key in SLSsteam config & no key in ConfigStore
-		if size < 1 then
-			log.warn("Missing decryptionkey for " .. depotId)
+		local nameMatch = ffi.string(pChName):match("%d+\\DecryptionKey")
+		if nameMatch == nil then
+			return trampSize
 		end
 
-		return Downloader.mutexReturn(size, mutex)
-	end
+		local depotId = tonumber(nameMatch:match("%d+"))
+		local key = Downloader.DecryptionKeys[depotId]
 
-	local bytes = Downloader.keyToBinary(depotId, key)
-	if bytes == nil then
-		return Downloader.mutexReturn(size, mutex)
-	end
+		if key == nil then
+			-- No key in SLSsteam config & no key in ConfigStore
+			if trampSize < 1 then
+				log.warn("Missing decryptionkey for " .. depotId)
+			end
+			return trampSize
+		end
 
-	log.debug("Using config key for " .. depotId)
+		local bytes = Downloader.keyToBinary(depotId, key)
+		if bytes == nil then
+			return trampSize
+		end
 
-	for i = 0, #bytes - 1 do
-		pOut[i] = bytes[i + 1]
-	end
-
-	return Downloader.mutexReturn(#bytes, mutex)
+		log.debug("Using config key for " .. depotId)
+		for i = 0, #bytes - 1 do
+			pOut[i] = bytes[i + 1]
+		end
+		return #bytes
+	end)
 end)
 
 -- GetManifestRequestCode ----------------------------------------------------------------------
-Downloader.getManifestRequestCode = function(manifestId, try)
-	if try > Downloader.MAX_MANIFEST_TRIES then
+-- MRC resolution is deliberately independent of the 32-bit SpaceBunny implementation: same robustness
+-- ideas (sanity checks, caching, backoff, a request budget) but written for this x64 plugin.
+Downloader.u64str = function(value)
+	local buf = ffi.new("char[24]")
+	ffi.C.snprintf(buf, 24, "%llu", ffi.cast("uint64_t", value))
+	return ffi.string(buf)
+end
+
+-- A manifest request code is a random uint64. Short numbers, zeroes, HTML and echoed manifest ids are
+-- provider errors, not codes. strtoull is used instead of tonumber so 18-20 digit codes keep precision.
+Downloader.validateMRC = function(raw, manifestIdStr)
+	if raw == nil then
 		return nil
 	end
 
-	local manifestCStr = ffi.new("char[?]", Downloader.MAX_MANIFEST_STRING_SIZE)
-	ffi.C.snprintf(manifestCStr, Downloader.MAX_MANIFEST_STRING_SIZE, "%llu", manifestId)
-
-	local url = "http://gmrc.wudrm.com/manifest/" .. tostring(ffi.string(manifestCStr))
-	local codeStr = tostring(curl.downloadString(url, 5))
-	if #codeStr < 1 then
-		log.warn("Failed to download manifest request code for " .. manifestId)
+	local s = tostring(raw):gsub("^%s+", ""):gsub("%s+$", "")
+	if #s >= 2 and s:sub(1, 1) == '"' and s:sub(-1) == '"' then
+		s = s:sub(2, -2)
 	end
 
-	if tonumber(codeStr) == nil then
-		log.error("Invalid MRC response " .. codeStr)
-		return Downloader.getManifestRequestCode(manifestId, try + 1)
+	if not s:match("^%d+$") or s:match("^0+$") then
+		return nil
 	end
 
-	-- We don't use tonumber because of precision loss
-	local mrc = ffi.C.strtoull(codeStr, ffi.cast("char*", 0), 10)
-	return mrc
+	local digits = s:gsub("^0+", "")
+	if #digits < 8 or #s > 20 then
+		return nil
+	end
+
+	if manifestIdStr ~= nil and digits == tostring(manifestIdStr):gsub("^0+", "") then
+		return nil
+	end
+
+	local code = ffi.C.strtoull(s, ffi.cast("char*", 0), 10)
+	if Downloader.u64str(code) ~= digits then
+		return nil
+	end
+
+	return digits
+end
+
+Downloader.resetMRCCaches = function()
+	Downloader.MRCCache = {}
+	Downloader.MRCFail = {}
+	Downloader.MRCProviderFail = {}
+end
+
+Downloader.pruneMRCCaches = function()
+	local now = os.time()
+
+	for k, v in pairs(Downloader.MRCCache) do
+		if type(v) ~= "table" or now - (v.at or 0) >= Downloader.MRC_CACHE_TTL then
+			Downloader.MRCCache[k] = nil
+		end
+	end
+
+	for k, untilTime in pairs(Downloader.MRCFail) do
+		if untilTime <= now then
+			Downloader.MRCFail[k] = nil
+		end
+	end
+end
+
+Downloader.mrcProviderCooling = function(name)
+	local state = Downloader.MRCProviderFail[name]
+	if state == nil then
+		return false
+	end
+
+	if state.untilTime <= os.time() then
+		Downloader.MRCProviderFail[name] = nil
+		return false
+	end
+	return true
+end
+
+Downloader.mrcRecordProviderFailure = function(name, reason)
+	local now = os.time()
+	local state = Downloader.MRCProviderFail[name]
+	if state == nil then
+		state = { count = 0, untilTime = 0 }
+	end
+
+	state.count = state.count + 1
+	if state.count >= 3 then
+		state.untilTime = now + Downloader.MRC_FAIL_TTL
+		state.count = 0
+		log.warn("MRC provider " .. name .. " skipped for " .. Downloader.MRC_FAIL_TTL
+			.. "s after " .. reason)
+	end
+	Downloader.MRCProviderFail[name] = state
+end
+
+Downloader.fetchMRCFrom = function(provider, manifestIdStr, timeout)
+	if Downloader.mrcProviderCooling(provider.name) then
+		return nil, "cooling"
+	end
+
+	local url = tostring(provider.url):gsub("/+$", "") .. "/" .. manifestIdStr
+	local ok, raw = pcall(curl.downloadString, url, timeout)
+	if not ok then
+		log.debug("MRC provider " .. provider.name .. " error: " .. tostring(raw))
+		Downloader.mrcRecordProviderFailure(provider.name, "an error")
+		return nil, "error"
+	end
+
+	local code = Downloader.validateMRC(raw, manifestIdStr)
+	if code == nil then
+		local reason = "bad-body"
+		if raw == nil or raw == "" then
+			reason = "empty"
+		elseif type(raw) == "string" and raw:lower():find("<html", 1, true) then
+			reason = "html"
+		end
+		log.debug("MRC provider " .. provider.name .. " returned " .. reason)
+		Downloader.mrcRecordProviderFailure(provider.name, reason)
+		return nil, reason
+	end
+
+	Downloader.MRCProviderFail[provider.name] = nil
+	return code, "ok"
+end
+
+Downloader.getManifestRequestCode = function(manifestId)
+	if manifestId == nil then
+		return nil
+	end
+
+	local manifestIdStr = Downloader.u64str(manifestId)
+	if manifestIdStr == "0" then
+		return nil
+	end
+
+	Downloader.pruneMRCCaches()
+	local now = os.time()
+
+	local cached = Downloader.MRCCache[manifestIdStr]
+	if cached ~= nil and now - (cached.at or 0) < Downloader.MRC_CACHE_TTL then
+		return ffi.C.strtoull(cached.value, ffi.cast("char*", 0), 10)
+	end
+
+	local failUntil = Downloader.MRCFail[manifestIdStr]
+	if failUntil ~= nil and failUntil > now then
+		return nil
+	end
+
+	local deadline = now + Downloader.MRC_TOTAL_BUDGET_SEC
+	local report = {}
+
+	for _, provider in ipairs(Downloader.MRC_PROVIDERS) do
+		local remaining = deadline - os.time()
+		if remaining < 1 then
+			report[#report + 1] = provider.name .. "=no-budget"
+		else
+			local timeout = math.max(1, math.min(provider.timeout or Downloader.MRC_TIMEOUT_SEC, remaining))
+			local code, reason = Downloader.fetchMRCFrom(provider, manifestIdStr, timeout)
+			report[#report + 1] = provider.name .. "=" .. reason
+
+			if code ~= nil then
+				Downloader.MRCCache[manifestIdStr] = { value = code, at = os.time(), provider = provider.name }
+				Downloader.MRCFail[manifestIdStr] = nil
+				log.debug("Using MRC " .. code .. " for manifest " .. manifestIdStr)
+				return ffi.C.strtoull(code, ffi.cast("char*", 0), 10)
+			end
+		end
+	end
+
+	Downloader.MRCFail[manifestIdStr] = os.time() + Downloader.MRC_FAIL_TTL
+	log.warn("Failed to get MRC for manifest " .. manifestIdStr .. " (" .. table.concat(report, ", ") .. ")")
+	return nil
 end
 
 Downloader.hkGetMRC = ffi.cast("GetMRC_t", function(a1, appId, depotId, manifestId, pChBranch, pOutMRC)
-	local mutex = LuaMutex()
-	local success = Downloader.getMRCTramp(a1, appId, depotId, manifestId, pChBranch, pOutMRC)
+	local trampSuccess = false
 
-	-- Don't rely on success. Check whether MRC has been written
-	if pOutMRC[0] ~= ffi.cast("uint64_t", 0) then
-		return Downloader.mutexReturn(success, mutex)
-	end
+	return Downloader.callInHook("GetManifestRequestCode", function() return trampSuccess end, function()
+		trampSuccess = Downloader.getMRCTramp(a1, appId, depotId, manifestId, pChBranch, pOutMRC)
 
-	local code = Downloader.getManifestRequestCode(manifestId, 1)
-	if code == nil then
-		log.error("Failed to get MRC for " .. depotId)
-		return Downloader.mutexReturn(success, mutex)
-	end
+		-- Don't rely on success. Check whether MRC has been written.
+		if pOutMRC[0] ~= ffi.cast("uint64_t", 0) then
+			return trampSuccess
+		end
 
-	local codeCStr = ffi.new("char[?]", Downloader.MAX_MANIFEST_STRING_SIZE)
-	ffi.C.snprintf(codeCStr, Downloader.MAX_MANIFEST_STRING_SIZE, "%llu", code)
-	log.debug("Using MRC " .. tostring(ffi.string(codeCStr)) .. " for " .. depotId)
+		local code = Downloader.getManifestRequestCode(manifestId)
+		if code == nil then
+			log.error("Failed to get MRC for " .. depotId)
+			return trampSuccess
+		end
 
-	pOutMRC[0] = code
-
-	return Downloader.mutexReturn(true, mutex)
+		pOutMRC[0] = code
+		return true
+	end)
 end)
 
 -- Hooking ------------------------------------------------------------------------------------
@@ -388,6 +609,7 @@ end
 
 Downloader.luaReload = function()
 	Downloader.resetSettings()
+	Downloader.resetMRCCaches()
 	Downloader.writeDepotIds()
 end
 
