@@ -1,43 +1,49 @@
 # paws-plugins
 
-Version-pinned `download.lua` builds for [paws](https://github.com/one-eyed-queen/paws) and SLSsteam.
+Version-pinned SLSsteam Lua plugins for [paws](https://github.com/one-eyed-queen/paws).
 
-paws installs one of these as `~/.config/SLSsteam/plugins/download.lua`, chosen from
-[`manifest.json`](manifest.json) by Steam architecture, Steam client build and SLSsteam version.
-The bundled 32-bit copy inside paws is only the offline fallback; this repo is the source of truth
-for version-matched plugins.
+paws uses [`manifest.json`](manifest.json) to pick one download interceptor by Steam architecture, Steam client build and SLSsteam version. It verifies SHA-256 before installing it as `~/.config/SLSsteam/plugins/download.lua`. The bundled x86 copy inside paws is only the offline fallback.
 
-paws verifies the SHA-256 in the manifest before it installs anything. Do not edit these files in
-place: change the file, update its hash in `manifest.json`, then let paws re-fetch it.
+## Layout
 
-## Files
+- `x64/` — plugins for the 64-bit `steamrt64` client.
+- `x86/` — plugins for the 32-bit `ubuntu12_32` client.
 
-| file | for | notes |
-|---|---|---|
-| `plugins/download-steam64.lua` | 64-bit `steamrt64` Steam client | x64 port: SysV hooks, RIP-relative call-site patterns, x64 `PackageInfo_t`, absolute-path `libtier0_s.so` load, HTTPS MRC with validation/cache/backoff and guarded hooks |
-| `plugins/download-steam32.lua` | 32-bit `ubuntu12_32` Steam client | the original plugin paws has shipped for years |
-| `plugins/LICENSE` | both | MIT, copyright ciscosweater (original plugin) |
+Filenames and internal identifiers are deliberately opaque. Each arch folder contains:
 
-## ASSella plugin mirror
+| x64 file | x86 file | Role | Auto-installed by paws? |
+|---|---|---|---|
+| `rize.lua` | `kaneki.lua` | Download interceptor: depots, decryption keys, MRC resolution | Yes, via the manifest |
+| `touka.lua` | `ayato.lua` | Ownership-ticket splicing for apps whose own ticket request fails | No, optional |
+| `eto.lua` | `yoshimura.lua` | Looks up missing depot keys in Sudama's key list | No, optional |
+| `hinami.lua` | `nishiki.lua` | Saves/restores-warning for `AdditionalDepots` and `DecryptionKeys` | No, optional |
+| `arima.lua` | `suzuya.lua` | Startup/config health check for the download setup | No, optional |
 
-[`contrib/assella/`](contrib/assella/) carries niwia's five SLSsteam Lua plugins from
-[niwia/ASSella](https://github.com/niwia/ASSella), verbatim and GPL-3.0 with attribution. They are
-not selected by `manifest.json` and are not installed by `paws plugins download`. SpaceBunny covers
-the same job as `download.lua` but is x86-era; the verified x64 plugin remains the one in
-[`plugins/`](plugins/). See [`contrib/assella/README.md`](contrib/assella/README.md) for hashes,
-versions. The MRC robustness ideas were reimplemented clean-room in the x64 plugin (`2026.11.23-x64-3`);
-no GPL code was copied into it.
+Optional plugins share the `Kaneki` global namespace and only mark their presence there; they do not hook each other.
 
-## Manifest
+## Download interceptor
 
-`manifest.json` maps `{steam_arch, steam_build, sls_version}` to a file, URL, SHA-256 and pattern set.
-Selection is exact first, then wildcard/range entries, then a default.
+SpaceBunny was removed from this collection. Its useful behaviour now lives in our own downloaders as a clean-room implementation:
 
-After Steam or SLSsteam updates, add a new entry with the new version triple and the hash of the
-verified plugin. `paws repair` (or `paws plugins download`) will then pick it up.
+- MRC validation rejects HTML, short numbers, zeroes and echoed manifest IDs; `strtoull` preserves 18–20 digit codes.
+- Success cache, per-manifest failure backoff and per-provider cooldown.
+- Two MRC endpoints: the primary `wudrm` HTTPS host and a proxy-style fallback worker.
+- Guarded hooks unlock the mutex even when a hook errors.
+- Depot writes validate the package pointer, limit counts, dedupe IDs, preserve vector fields and refuse empty writes.
+
+## Checks done before publishing
+
+- Every Lua file passes `luajit -bl`.
+- The x64 patterns were checked against `steamrt64/steamclient.so` build `1792618285`.
+- The x86 patterns were checked against `ubuntu12_32/steamclient.so`.
+- The MRC helper logic was exercised with a standalone LuaJIT harness.
+- The Sudama depot-key endpoint and the MRC fallback worker were reached with CLI probes.
+- The ticket-splice RTTI names `14IClientUserMap` and `GetAppOwnershipTicketExtendedData` exist in both x64 and x86 clients; the hook has not been launched in Steam here.
+
+Steam was not launched. The previously working x64 plugin was left in place locally; update the live `download.lua` only when you are ready to test Steam again.
 
 ## Credits
 
-- **ciscosweater** — original 32-bit `download.lua`, MIT (license in [`plugins/LICENSE`](plugins/LICENSE)), via [enter-the-wired](https://github.com/ciscosweater/enter-the-wired).
-- **niwia and the ASSella contributors** — SpaceBunny, Styx, Lobster, Lettuce and Pineapple, GPL-3.0, mirrored with attribution in [`contrib/assella/`](contrib/assella/). The x86 patterns and provider/proxy design informed paws' pattern checking and failure handling; no GPL code was copied into paws' plugin.
-- The x64 port of `download.lua` is maintained here for paws. The manifest-code service used by the plugin (`gmrc.wudrm.com`) is external to this repo.
+- **ciscosweater** — original 32-bit `download.lua`, MIT (see [`LICENSE`](LICENSE)).
+- **niwia and the ASSella contributors** — SpaceBunny's MRC robustness design inspired the clean-room improvements here. No ASSella Lua files remain in this repo.
+- The x64 port and the optional paws plugins are maintained here for paws. External services used by plugins are not part of this repo.

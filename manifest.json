@@ -7,23 +7,23 @@
       "steam_arch": 64,
       "steam_build": "1792618285",
       "sls_version": "20261112130346",
-      "file": "download-steam64.lua",
-      "url": "https://raw.githubusercontent.com/one-eyed-queen/paws-plugins/main/plugins/download-steam64.lua",
-      "sha256": "4fcac93f9b35dfb1256a44a8779ece75ad36c72ce80df02ae6ed87f5d2606431",
-      "version": "2026.11.23-x64-3",
+      "file": "rize.lua",
+      "url": "https://raw.githubusercontent.com/one-eyed-queen/paws-plugins/main/x64/rize.lua",
+      "sha256": "68030637953b523d3b0ea9354b54c98f6961a9c6f8796b97229685c2bc2cb96f",
+      "version": "2026.11.23-x64-4",
       "pattern_set": "steam64-1792618285",
-      "note": "verified against steamrt64/steamclient.so build 1792618285; MRC sanity checks, cache, backoff, HTTPS, safer hooks"
+      "note": "verified against steamrt64/steamclient.so build 1792618285"
     },
     {
       "steam_arch": 32,
       "steam_build": "*",
       "sls_version": "*",
-      "file": "download-steam32.lua",
-      "url": "https://raw.githubusercontent.com/one-eyed-queen/paws-plugins/main/plugins/download-steam32.lua",
-      "sha256": "8e822aecfea085cfcada45b9ed0e8f2c09bc04b76c667cc1904342c9197be627",
-      "version": "2026.09.04-x86",
+      "file": "kaneki.lua",
+      "url": "https://raw.githubusercontent.com/one-eyed-queen/paws-plugins/main/x86/kaneki.lua",
+      "sha256": "5dbdc4e3043feba049e515754bd52ded8ecadea1a09650e5d10b05e6bdb94fe7",
+      "version": "2026.11.23-x86-2",
       "pattern_set": "steam32-legacy",
-      "note": "the original 32-bit plugin paws has shipped; unchanged"
+      "note": "x86 download interceptor with the same MRC robustness and proxy fallback"
     }
   ]
 }
