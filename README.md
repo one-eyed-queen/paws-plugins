@@ -18,6 +18,15 @@ place: change the file, update its hash in `manifest.json`, then let paws re-fet
 | `plugins/download-steam32.lua` | 32-bit `ubuntu12_32` Steam client | the original plugin paws has shipped for years |
 | `plugins/LICENSE` | both | MIT, copyright ciscosweater (original plugin) |
 
+## ASSella plugin mirror
+
+[`contrib/assella/`](contrib/assella/) carries niwia's five SLSsteam Lua plugins from
+[niwia/ASSella](https://github.com/niwia/ASSella), verbatim and GPL-3.0 with attribution. They are
+not selected by `manifest.json` and are not installed by `paws plugins download`. SpaceBunny covers
+the same job as `download.lua` but is x86-era; the verified x64 plugin remains the one in
+[`plugins/`](plugins/). See [`contrib/assella/README.md`](contrib/assella/README.md) for hashes,
+versions and which ideas are worth reimplementing in paws without copying GPL code.
+
 ## Manifest
 
 `manifest.json` maps `{steam_arch, steam_build, sls_version}` to a file, URL, SHA-256 and pattern set.
@@ -28,5 +37,6 @@ verified plugin. `paws repair` (or `paws plugins download`) will then pick it up
 
 ## Credits
 
-The 32-bit plugin is by ciscosweater (MIT license included). The x64 port is maintained here for
-paws. The manifest-code service used by the plugin (`gmrc.wudrm.com`) is external to this repo.
+- **ciscosweater** — original 32-bit `download.lua`, MIT (license in [`plugins/LICENSE`](plugins/LICENSE)), via [enter-the-wired](https://github.com/ciscosweater/enter-the-wired).
+- **niwia and the ASSella contributors** — SpaceBunny, Styx, Lobster, Lettuce and Pineapple, GPL-3.0, mirrored with attribution in [`contrib/assella/`](contrib/assella/). The x86 patterns and provider/proxy design informed paws' pattern checking and failure handling; no GPL code was copied into paws' plugin.
+- The x64 port of `download.lua` is maintained here for paws. The manifest-code service used by the plugin (`gmrc.wudrm.com`) is external to this repo.
